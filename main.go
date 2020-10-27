@@ -1,59 +1,52 @@
 package main
 
 import (
+	"fmt"
+	"github.com/go-vgo/robotgo"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/micmonay/keybd_event"
+	"github.com/spf13/viper"
 	"log"
-	"runtime"
-	"time"
 )
 
 func main() {
+	viper.AddConfigPath(".")
+	viper.SetConfigName("config")
+
+	err := viper.ReadInConfig()
+	if err != nil {
+		log.Fatal(fmt.Errorf("Fatal error config file: %s \n", err))
+	}
+
 	app := fiber.New()
-	kb, _ := keybd_event.NewKeyBonding()
 
 	app.Use(cors.New())
 
-	if runtime.GOOS == "linux" {
-		time.Sleep(2 * time.Second)
-	}
-
-	app.Static("/", "./dist")
-
-
-	app.Get("/api/:player/:button", func(c *fiber.Ctx) error {
-
-		if c.Params("player") == "1" {
-			switch c.Params("button") {
-			case "left":
-				kb.SetKeys(keybd_event.VK_LEFT)
-			case "right":
-				kb.SetKeys(keybd_event.VK_RIGHT)
-			case "back":
-				kb.SetKeys(keybd_event.VK_ESC)
-			case "start":
-				kb.SetKeys(keybd_event.VK_ENTER)
-			}
-		} else {
-			switch c.Params("button") {
-			case "left":
-				kb.SetKeys(203)
-			case "right":
-				kb.SetKeys(205)
-			case "back":
-				kb.SetKeys(211)
-			case "start":
-				kb.SetKeys(210)
-			}
-		}
-
-		kb.Press()
-		time.Sleep(10 * time.Millisecond)
-		kb.Release()
+	app.Get("/api/longpress/:player/:button/:state", func(c *fiber.Ctx) error {
+		robotgo.KeyToggle(viper.GetString(fmt.Sprintf(
+			"p%s.%s", c.Params("player"), c.Params("button"))), c.Params("state"))
 
 		return c.SendString("Key pressed!")
 	})
 
-	log.Fatal(app.Listen("0.0.0.0:3001"))
+	app.Get("/api/doublepress/:player", func(c *fiber.Ctx) error {
+		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.left", c.Params("player"))), "down")
+		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.right", c.Params("player"))), "down")
+		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.left", c.Params("player"))), "up")
+		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.right", c.Params("player"))), "up")
+		return c.SendString("Keys pressed!")
+	})
+
+	app.Get("/api/press/:player/:button", func(c *fiber.Ctx) error {
+		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.%s", c.Params("player"), c.Params("button"))), "down")
+		robotgo.MilliSleep(10)
+		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.%s", c.Params("player"), c.Params("button"))), "up")
+		return c.SendString("Key pressed!")
+	})
+
+	app.Static("/", "./dist")
+
+
+	log.Fatal(app.Listen(viper.GetString("fiber.host") + ":" + viper.GetString("fiber.port")))
+
 }

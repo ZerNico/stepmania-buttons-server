@@ -1,0 +1,18 @@
+{
+  "fiber": {
+    "host": "0.0.0.0",
+    "port": 3000
+  },
+  "p1": {
+    "left": "left",
+    "right": "right",
+    "back": "escape",
+    "start": "enter"
+  },
+  "p2": {
+    "left": "num4",
+    "right": "num6",
+    "back": "pageup",
+    "start": "num0"
+  }
+}
