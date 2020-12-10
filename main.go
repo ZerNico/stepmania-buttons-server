@@ -1,13 +1,21 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/antoniodipinto/ikisocket"
 	"github.com/go-vgo/robotgo"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/spf13/viper"
 	"log"
 )
+
+type ButtonPress struct {
+	Type   string `json:"type"`
+	Button string `json:"button"`
+	Player int `json:"player"`
+}
 
 func main() {
 	viper.AddConfigPath(".")
@@ -22,30 +30,30 @@ func main() {
 
 	app.Use(cors.New())
 
-	app.Get("/api/longpress/:player/:button/:state", func(c *fiber.Ctx) error {
-		robotgo.KeyToggle(viper.GetString(fmt.Sprintf(
-			"p%s.%s", c.Params("player"), c.Params("button"))), c.Params("state"))
-
-		return c.SendString("Key pressed!")
+	ikisocket.On(ikisocket.EventConnect, func(ep *ikisocket.EventPayload) {
+		fmt.Println("Client connected")
 	})
 
-	app.Get("/api/doublepress/:player", func(c *fiber.Ctx) error {
-		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.left", c.Params("player"))), "down")
-		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.right", c.Params("player"))), "down")
-		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.left", c.Params("player"))), "up")
-		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.right", c.Params("player"))), "up")
-		return c.SendString("Keys pressed!")
+	ikisocket.On(ikisocket.EventMessage, func(ep *ikisocket.EventPayload) {
+		buttonPress := ButtonPress{}
+
+		err := json.Unmarshal(ep.Data, &buttonPress)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		if buttonPress.Type == "press" {
+			robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%d.%s", buttonPress.Player, buttonPress.Button)), "down")
+			robotgo.MilliSleep(5)
+		} else if buttonPress.Type == "release" {
+			robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%d.%s", buttonPress.Player, buttonPress.Button)), "up")
+		}
 	})
 
-	app.Get("/api/press/:player/:button", func(c *fiber.Ctx) error {
-		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.%s", c.Params("player"), c.Params("button"))), "down")
-		robotgo.MilliSleep(10)
-		robotgo.KeyToggle(viper.GetString(fmt.Sprintf("p%s.%s", c.Params("player"), c.Params("button"))), "up")
-		return c.SendString("Key pressed!")
-	})
+	app.Get("/ws", ikisocket.New(func(kws *ikisocket.Websocket) { }))
 
 	app.Static("/", "./dist")
-
 
 	log.Fatal(app.Listen(viper.GetString("fiber.host") + ":" + viper.GetString("fiber.port")))
 
