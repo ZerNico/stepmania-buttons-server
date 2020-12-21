@@ -9,12 +9,26 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/spf13/viper"
 	"log"
+	"net"
+	"os"
 )
 
 type ButtonPress struct {
 	Type   string `json:"type"`
 	Button string `json:"button"`
 	Player int `json:"player"`
+}
+
+func GetOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
 }
 
 func main() {
@@ -26,7 +40,9 @@ func main() {
 		log.Fatal(fmt.Errorf("Fatal error config file: %s \n", err))
 	}
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		DisableStartupMessage: true,
+	})
 
 	app.Use(cors.New())
 
@@ -55,6 +71,12 @@ func main() {
 
 	app.Static("/", "./dist")
 
-	log.Fatal(app.Listen(viper.GetString("fiber.host") + ":" + viper.GetString("fiber.port")))
+	hostname, _ := os.Hostname()
 
+	fmt.Println("Stepmania Buttons")
+	fmt.Println("Open the page at one of these addresses:")
+	fmt.Println(fmt.Sprintf("http://%s:%s", hostname, viper.GetString("fiber.port")))
+	fmt.Println(fmt.Sprintf("http://%s:%s\n", GetOutboundIP(), viper.GetString("fiber.port")))
+
+	log.Fatal(app.Listen(viper.GetString("fiber.host") + ":" + viper.GetString("fiber.port")))
 }
